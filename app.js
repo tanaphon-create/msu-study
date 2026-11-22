@@ -9,6 +9,7 @@
   /* ---------- state ---------- */
   var st = { done: {}, notes: {}, hl: {}, last: {}, ps: {}, fs: 18, theme: 'auto' };
   try { Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
+  Object.keys(st.hl || {}).forEach(function (k) { st.hl[k] = st.hl[k].map(function (w) { return typeof w === 'string' ? { t: w, n: '' } : w; }); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
 
   /* ---------- helpers ---------- */
@@ -124,15 +125,15 @@
   }
   function hlText(txt, list) {
     var h = esc(txt);
-    (list || []).forEach(function (w) {
-      var e = esc(w); if (!e) return;
+    (list || []).forEach(function (w, wi) {
+      var e = esc(w.t); if (!e) return;
       var i = h.indexOf(e);
-      if (i >= 0) h = h.slice(0, i) + '<mark class="hl">' + e + '</mark>' + h.slice(i + e.length);
+      if (i >= 0) h = h.slice(0, i) + '<mark class="hl' + (w.n ? ' hn' : '') + '" data-i="' + wi + '">' + e + '</mark>' + h.slice(i + e.length);
     });
     return h;
   }
 
-  function topicView(code, id) {
+  function topicView(code, id, keep) {
     var s = subj(code); if (!s) return notFound();
     var list = flat(s);
     var idx = -1;
@@ -195,7 +196,7 @@
       '<button class="btn ' + (dn ? 'ok' : '') + '" id="doneBtn">' + (dn ? '✓ อ่านแล้ว (กดเพื่อยกเลิก)' : 'ทำเครื่องหมายว่าอ่านแล้ว') + '</button>' +
       '<div>' + (next ? '<a class="btn" href="#/s/' + code + '/t/' + next.t.id + '">' + th(next.t.id) + ' →</a>' : '') + '</div></div>' +
       '<div class="notes" style="margin-top:22px"><h2 style="margin-top:0">โน้ตของฉัน</h2><textarea id="note" placeholder="จดประเด็นที่ต้องจำ ข้อที่ยังสงสัย…">' + esc(st.notes[k] || '') + '</textarea>' +
-      '<p class="muted small">เลือกข้อความในเนื้อหาแล้วกด “ไฮไลต์” เพื่อเก็บไว้ทบทวน · ไฮไลต์ที่เก็บไว้: ' + th(hls.length) + ' รายการ</p></div></article>';
+      '<p class="muted small">เลือกข้อความแล้วกด “ไฮไลต์” หรือ “โน้ต” · แตะข้อความที่ไฮไลต์เพื่อเขียน/แก้โน้ตหรือลบ · ไฮไลต์ในเรื่องนี้: ' + th(hls.length) + ' รายการ</p></div></article>';
 
     var snav = '<nav class="stickynav" aria-label="ไปเรื่องก่อนหน้า/ถัดไป">' +
       (prev ? '<a class="btn ghost" href="#/s/' + code + '/t/' + prev.t.id + '">← ก่อนหน้า</a>' : '<span></span>') +
@@ -221,16 +222,22 @@
       }, { passive: true });
     })();
     document.title = th(t.id) + ' ' + t.title + ' · ติวสอบ มสธ.';
-    window.scrollTo(0, 0);
-    $('#doneBtn').onclick = function () { if (st.done[k]) delete st.done[k]; else st.done[k] = true; save(); topicView(code, id); };
+    if (!keep) window.scrollTo(0, 0);
+    $('#doneBtn').onclick = function () { if (st.done[k]) delete st.done[k]; else st.done[k] = true; save(); rerender(code, id); };
+    $('#rd').addEventListener('click', function (e) {
+      var m = e.target.closest && e.target.closest('mark.hl');
+      if (m && m.dataset.i !== undefined) openNote(code, id, +m.dataset.i);
+    });
     $('#note').oninput = function () { st.notes[k] = this.value; save(); };
-    var cl = $('.side a.cur'); if (cl && cl.scrollIntoView) cl.scrollIntoView({ block: 'center' });
+    var cl = $('.side a.cur'); if (cl && !keep) { var sd = $('.side'); sd.scrollTop = cl.offsetTop - sd.clientHeight / 2; }
     document.querySelectorAll('.side a').forEach(function (a) { a.addEventListener('click', function () { $('.side').classList.remove('open'); }); });
   }
 
   /* highlight selection */
-  var hb = document.createElement('button');
-  hb.className = 'hlbtn'; hb.textContent = '⭐ ไฮไลต์'; document.body.appendChild(hb);
+  var hb = document.createElement('div');
+  hb.className = 'hlbtn';
+  hb.innerHTML = '<button data-act="hl">⭐ ไฮไลต์</button><button data-act="note">✏️ โน้ต</button>';
+  document.body.appendChild(hb);
   var selText = '';
   document.addEventListener('selectionchange', function () {
     var sel = getSelection();
@@ -239,19 +246,44 @@
     selText = sel.toString().replace(/\s+/g, ' ').trim();
     if (selText.length < 3) { hb.style.display = 'none'; return; }
     var r = sel.getRangeAt(0).getBoundingClientRect();
-    hb.style.display = 'block';
-    hb.style.top = Math.max(70, r.top - 44) + 'px';
-    hb.style.left = Math.min(innerWidth - 110, Math.max(8, r.left)) + 'px';
+    hb.style.display = 'flex';
+    hb.style.top = Math.max(70, r.top - 52) + 'px';
+    hb.style.left = Math.min(innerWidth - 220, Math.max(8, r.left)) + 'px';
   });
   hb.addEventListener('mousedown', function (e) { e.preventDefault(); });
-  hb.onclick = function () {
+  hb.addEventListener('touchstart', function (e) { e.preventDefault(); }, { passive: false });
+  function rerender(code, id) { var y = window.scrollY; topicView(code, id, true); window.scrollTo(0, y); }
+  function hbAct(e) {
+    var btn = e.target.closest('button'); if (!btn) return;
+    e.preventDefault();
     var m = location.hash.match(/^#\/s\/([^/]+)\/t\/(.+)$/);
     if (!m || !selText) return;
     var k = key(m[1], m[2]);
-    (st.hl[k] = st.hl[k] || []).push(selText); save();
+    var list = (st.hl[k] = st.hl[k] || []);
+    list.push({ t: selText, n: '' }); save();
+    var idx = list.length - 1, act = btn.dataset.act;
     hb.style.display = 'none'; getSelection().removeAllRanges();
-    topicView(m[1], m[2]);
-  };
+    rerender(m[1], m[2]);
+    if (act === 'note') openNote(m[1], m[2], idx);
+  }
+  hb.addEventListener('click', hbAct);
+  hb.addEventListener('touchend', hbAct);
+
+  var pop = null;
+  function closeNote() { if (pop) { pop.remove(); pop = null; } }
+  function openNote(code, id, idx) {
+    closeNote();
+    var k = key(code, id), w = (st.hl[k] || [])[idx]; if (!w) return;
+    pop = document.createElement('div'); pop.className = 'notepop';
+    pop.innerHTML = '<div class="muted small">ข้อความที่ไฮไลต์</div><blockquote>' + esc(w.t) + '</blockquote>' +
+      '<textarea id="hn" placeholder="เขียนโน้ตของคุณตรงนี้…" rows="4">' + esc(w.n || '') + '</textarea>' +
+      '<div class="row" style="margin-top:10px"><button class="btn" id="hnSave">บันทึกโน้ต</button><button class="btn ghost" id="hnDel">ลบไฮไลต์</button><button class="btn ghost" id="hnX">ปิด</button></div>';
+    document.body.appendChild(pop);
+    var ta = $('#hn'); ta.focus();
+    $('#hnSave').onclick = function () { w.n = ta.value.trim(); save(); closeNote(); rerender(code, id); };
+    $('#hnDel').onclick = function () { st.hl[k].splice(idx, 1); save(); closeNote(); rerender(code, id); };
+    $('#hnX').onclick = function () { if (ta.value.trim() !== (w.n || '')) { w.n = ta.value.trim(); save(); rerender(code, id); } closeNote(); };
+  }
 
   function reviewView() {
     var html = '<div class="crumb"><a href="#/">หน้าแรก</a></div><h1>ไฮไลต์และโน้ตของฉัน</h1>';
@@ -262,7 +294,7 @@
         if (!h.length && !note) return;
         n++;
         html += '<div class="card" style="margin:12px 0"><a href="#/s/' + s.code + '/t/' + x.t.id + '"><b>' + th(x.t.id) + ' ' + esc(x.t.title) + '</b></a>';
-        h.forEach(function (w, i) { html += '<div class="hl-item"><mark class="hl">' + esc(w) + '</mark><button data-k="' + k + '" data-i="' + i + '" aria-label="ลบไฮไลต์">✕</button></div>'; });
+        h.forEach(function (w, i) { html += '<div class="hl-item"><div><mark class="hl">' + esc(w.t) + '</mark>' + (w.n ? '<div class="muted small" style="margin-top:4px">✏️ ' + esc(w.n) + '</div>' : '') + '</div><button data-k="' + k + '" data-i="' + i + '" aria-label="ลบไฮไลต์">✕</button></div>'; });
         if (note) html += '<p class="muted" style="white-space:pre-wrap;margin-bottom:0">📝 ' + esc(note) + '</p>';
         html += '</div>';
       });

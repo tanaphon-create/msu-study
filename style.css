@@ -171,3 +171,14 @@ ol.emph li{margin:.7em 0;line-height:1.8}
 }
 @media (min-width:1101px){.side{display:block}.stickynav{display:none}}
 .keybox h2{margin:.5em 0 .4em;font-size:1.1rem;color:var(--accent)}
+
+/* highlight toolbar + note popover */
+.hlbtn{display:none;gap:6px;padding:6px;border-radius:999px;background:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.3)}
+.hlbtn button{border:0;background:none;color:var(--bg);font-weight:600;padding:8px 14px;border-radius:999px;min-height:40px}
+.hlbtn button:active{background:rgba(255,255,255,.2)}
+mark.hl{cursor:pointer}
+mark.hl.hn{border-bottom:2px solid var(--accent)}
+mark.hl.hn::after{content:"✎";font-size:.75em;margin-left:2px;color:var(--accent)}
+.notepop{position:fixed;z-index:60;top:12vh;left:50%;transform:translateX(-50%);width:min(92vw,540px);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.notepop blockquote{margin:6px 0 10px;padding:8px 12px;border-left:3px solid var(--accent);background:var(--surface2);max-height:6.5em;overflow:auto;font-size:.95rem}
+.notepop textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:1rem}
