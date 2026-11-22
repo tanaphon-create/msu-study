@@ -7,7 +7,7 @@
   var app = $('#app');
 
   /* ---------- state ---------- */
-  var st = { done: {}, notes: {}, hl: {}, last: {}, ps: {}, fs: 18, theme: 'auto' };
+  var st = { done: {}, notes: {}, hl: {}, last: {}, ps: {}, fs: 18, theme: 'auto', bm: {}, fc: {}, lh: 0 };
   try { Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   Object.keys(st.hl || {}).forEach(function (k) { st.hl[k] = st.hl[k].map(function (w) { return typeof w === 'string' ? { t: w, n: '' } : w; }); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
@@ -76,6 +76,7 @@
       '<div class="count"><b>' + th(tot.n ? Math.round(tot.d / tot.n * 100) : 0) + '%</b></div>' +
       '<div class="bar" role="progressbar" aria-valuenow="' + (tot.n ? Math.round(tot.d / tot.n * 100) : 0) + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + (tot.n ? tot.d / tot.n * 100 : 0) + '%"></i></div>' +
       '<p class="muted small" style="margin:.6em 0 0">อ่านแล้ว ' + th(tot.d) + ' / ' + th(tot.n) + ' เรื่อง</p></div></div>';
+    html += todayCard(perDay);
     html += '<h2>วิชาของฉัน</h2><div class="grid">';
     SUBJECTS.forEach(function (s) {
       var p = progress(s);
@@ -85,8 +86,10 @@
         '<p class="muted small" style="margin:.5em 0 0">' + th(s.units.length) + ' หน่วย · อ่านแล้ว ' + th(p.d) + '/' + th(p.n) + ' เรื่อง' + (last ? ' · ต่อจากเดิมได้' : '') + '</p></a>';
     });
     html += '</div><p class="muted small" style="margin-top:20px">เพิ่มอีก ๒ วิชาได้เมื่อส่งไฟล์มา · ข้อมูลความคืบหน้า โน้ต และไฮไลต์เก็บไว้ในเครื่องนี้ (เบราว์เซอร์) เท่านั้น</p>';
+    html += backupBox();
     app.innerHTML = html;
     document.title = 'ติวสอบ มสธ.';
+    bindBackup();
   }
 
   function subjectView(code) {
@@ -95,7 +98,7 @@
     var html = '<div class="crumb"><a href="#/">หน้าแรก</a></div><h1>' + th(s.code) + ' ' + esc(s.name) + '</h1>' +
       '<div class="row"><div class="bar" style="flex:1;min-width:160px"><i style="width:' + p.pct + '%"></i></div><span class="pill">' + th(p.d) + '/' + th(p.n) + ' เรื่อง</span>' +
       (st.last[code] ? '<a class="btn" href="#/s/' + code + '/t/' + st.last[code] + '">▶ อ่านต่อจากเดิม</a>' : '<a class="btn" href="#/s/' + code + '/t/' + flat(s)[0].t.id + '">▶ เริ่มอ่าน</a>') +
-      '<a class="btn ghost" href="#/s/' + code + '/emph">🎯 เนื้อหาที่เน้นสอบ</a><a class="btn ghost" href="#/s/' + code + '/quiz">📝 แบบทดสอบ</a>' +
+      '<a class="btn ghost" href="#/s/' + code + '/cards">🃏 แฟลชการ์ด</a><a class="btn ghost" href="#/s/' + code + '/emph">🎯 เนื้อหาที่เน้นสอบ</a><a class="btn ghost" href="#/s/' + code + '/quiz">📝 แบบทดสอบ</a>' +
       '<a class="btn ghost" href="#/s/' + code + '/practice">✍ กิจกรรมท้ายเรื่อง</a><a class="btn ghost" href="#/review">⭐ ไฮไลต์และโน้ต</a></div>';
     s.units.forEach(function (u) {
       var up = progress(s, u);
@@ -156,7 +159,13 @@
     toc += '<p style="margin-top:14px"><a href="#/s/' + code + '">← ทุกหน่วย</a></p></aside>';
 
     var body = '<article class="card article"><div class="crumb"><a href="#/s/' + code + '">' + esc(s.name) + '</a> › หน่วย ' + th(u.no) + ' › ตอนที่ ' + th(sec.id) + '</div>' +
-      '<h1>' + th(t.id) + ' ' + esc(t.title) + '</h1>';
+      '<h1>' + th(t.id) + ' ' + esc(t.title) + '</h1>' +
+      '<div class="rtools"><span class="pill">⏱ ประมาณ ' + th(Math.max(1, Math.round(t.blocks.reduce(function (a, b) { return a + (typeof b.x === 'string' ? b.x.length : 0); }, 0) / 800))) + ' นาที</span>' +
+      '<button class="chip" id="bmBtn" aria-pressed="' + !!st.bm[key(code, id)] + '">' + (st.bm[key(code, id)] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก') + '</button>' +
+      '<button class="chip" id="ttsBtn">🔊 ฟังเสียงอ่าน</button>' +
+      '<select id="ttsRate" aria-label="ความเร็วเสียง"><option value="0.8">ช้า</option><option value="1" selected>ปกติ</option><option value="1.25">เร็ว</option></select>' +
+      '<button class="chip" id="focusBtn">🧘 โหมดโฟกัส</button>' +
+      '<select id="lhSel" aria-label="ระยะบรรทัด"><option value="0">บรรทัดมาตรฐาน</option><option value="1">บรรทัดห่าง</option><option value="2">ห่างมาก</option></select></div>';
     if (cur.first && sec.intro && sec.intro.length) {
       body += '<details class="intro"><summary>แนวคิดและวัตถุประสงค์ของตอนที่ ' + th(sec.id) + ' — ' + esc(sec.title) + '</summary>' + blocks(sec.intro) + '</details>';
     }
@@ -224,6 +233,7 @@
     document.title = th(t.id) + ' ' + t.title + ' · ติวสอบ มสธ.';
     if (!keep) window.scrollTo(0, 0);
     $('#doneBtn').onclick = function () { if (st.done[k]) delete st.done[k]; else st.done[k] = true; save(); rerender(code, id); };
+    bindTools(code, id, k);
     $('#rd').addEventListener('click', function (e) {
       var m = e.target.closest && e.target.closest('mark.hl');
       if (m && m.dataset.i !== undefined) openNote(code, id, +m.dataset.i);
@@ -286,8 +296,11 @@
   }
 
   function reviewView() {
-    var html = '<div class="crumb"><a href="#/">หน้าแรก</a></div><h1>ไฮไลต์และโน้ตของฉัน</h1>';
+    var html = '<div class="crumb"><a href="#/">หน้าแรก</a></div><h1>บุ๊กมาร์ก ไฮไลต์ และโน้ตของฉัน</h1>';
     var n = 0;
+    var bms = [];
+    SUBJECTS.forEach(function (s) { flat(s).forEach(function (x) { if (st.bm[key(s.code, x.t.id)]) bms.push('<a class="unit-card" style="margin:6px 0" href="#/s/' + s.code + '/t/' + x.t.id + '"><div class="no">★ ' + th(x.t.id) + '</div><h3 style="margin:.2em 0">' + esc(x.t.title) + '</h3></a>'); }); });
+    if (bms.length) { html += '<h2>บุ๊กมาร์ก</h2>' + bms.join(''); n++; }
     SUBJECTS.forEach(function (s) {
       flat(s).forEach(function (x) {
         var k = key(s.code, x.t.id), h = st.hl[k] || [], note = st.notes[k];
@@ -420,7 +433,7 @@
     s.units.forEach(function (u) {
       var z = (window.QZ || {})[u.no]; if (!z) return;
       var d = z.qs.filter(function (q, i) { return st.qs && st.qs[code + ':' + u.no + '-' + i]; }).length;
-      html += '<a class="unit-card" href="#/s/' + code + '/quiz/u/' + u.no + '"><div class="no">หน่วย ' + th(u.no) + '</div><h3>' + esc(u.title) + '</h3><div class="bar"><i style="width:' + (z.qs.length ? d / z.qs.length * 100 : 0) + '%"></i></div><p class="muted small" style="margin:.5em 0 0">' + th(z.qs.length) + ' ข้อ · ทำแล้ว ' + th(d) + '</p></a>';
+      html += '<a class="unit-card" href="#/s/' + code + '/quiz/u/' + u.no + '"><div class="no">หน่วย ' + th(u.no) + '</div><h3>' + esc(u.title) + '</h3><div class="bar"><i style="width:' + (z.qs.length ? d / z.qs.length * 100 : 0) + '%"></i></div><p class="muted small" style="margin:.5em 0 0">' + th(z.qs.length) + ' ข้อ · ทำแล้ว ' + th(d) + accTxt(code, u.no) + '</p></a>';
     });
     html += '</div>';
     app.innerHTML = html;
@@ -502,6 +515,155 @@
     var rb = $('#retryW'); if (rb) rb.onclick = function () { startQuiz(run.code, shuffle(run.wrong.map(function (x) { return x.q; })), 'ทำซ้ำข้อที่ผิด'); };
   }
 
+
+  /* ---------- study tools ---------- */
+  function unitAcc(code, u) {
+    var z = (window.QZ || {})[u]; if (!z) return null;
+    var r = 0, w = 0;
+    z.qs.forEach(function (q, i) { var x = st.qs && st.qs[code + ':' + u + '-' + i]; if (x) { r += x.r; w += x.w; } });
+    return (r + w) >= 3 ? Math.round(r / (r + w) * 100) : null;
+  }
+  function accTxt(code, u) { var a = unitAcc(code, u); return a === null ? '' : ' · แม่น ' + th(a) + '%'; }
+
+  function todayCard(perDay) {
+    var s = SUBJECTS[0]; if (!s) return '';
+    var next = flat(s).filter(function (x) { return !st.done[key(s.code, x.t.id)]; }).slice(0, Math.min(5, Math.max(1, perDay || 3)));
+    var weak = null;
+    s.units.forEach(function (u) { var a = unitAcc(s.code, u.no); if (a !== null && a < 75 && (weak === null || a < weak.a)) weak = { u: u, a: a }; });
+    var due = dueCards(s.code).length;
+    var h = '<h2>📅 วันนี้ควรทำ</h2><div class="grid">';
+    h += '<div class="card"><b>อ่านต่อ</b>' + (next.length ? '<div class="toc" style="margin-top:6px">' + next.map(function (x) { return '<a href="#/s/' + s.code + '/t/' + x.t.id + '"><span class="id">' + th(x.t.id) + '</span><span>' + esc(x.t.title) + '</span></a>'; }).join('') + '</div>' : '<p class="muted">อ่านครบทุกเรื่องแล้ว 🎉</p>') + '</div>';
+    h += '<div class="card"><b>🃏 แฟลชการ์ดที่ถึงเวลาทบทวน</b><p style="margin:.4em 0"><span style="font-size:1.8rem;font-weight:700;color:var(--accent)">' + th(due) + '</span> ใบ</p><a class="btn small-btn" href="#/s/' + s.code + '/cards">เริ่มทบทวน</a></div>';
+    h += '<div class="card"><b>🎯 จุดที่ควรเสริม</b>' + (weak ? '<p style="margin:.4em 0">หน่วย ' + th(weak.u.no) + ' ' + esc(weak.u.title) + ' (แม่น ' + th(weak.a) + '%)</p><a class="btn small-btn" href="#/s/' + s.code + '/quiz/u/' + weak.u.no + '">ทำข้อสอบหน่วยนี้อีกรอบ</a>' : '<p class="muted" style="margin:.4em 0">ยังไม่มีข้อมูลพอ — ลองทำแบบทดสอบสักหน่วย แล้วระบบจะชี้หน่วยที่อ่อนให้</p><a class="btn small-btn" href="#/s/' + s.code + '/quiz">ไปทำแบบทดสอบ</a>') + '</div></div>';
+    return h;
+  }
+
+  function backupBox() {
+    return '<details class="unit" style="margin-top:24px"><summary><span class="t">💾 สำรอง / ย้ายข้อมูลระหว่างเครื่อง (คอมพิวเตอร์ ↔ iPad)</span></summary><div class="body">' +
+      '<p class="muted small">ความคืบหน้า โน้ต ไฮไลต์ บุ๊กมาร์ก ผลข้อสอบ และแฟลชการ์ด เก็บในแต่ละเครื่องแยกกัน — คัดลอกรหัสจากเครื่องหนึ่ง แล้ววางในอีกเครื่องเพื่อย้ายข้อมูล</p>' +
+      '<div class="row"><button class="btn" id="bkCopy">📋 คัดลอกรหัสสำรอง</button></div>' +
+      '<textarea id="bkText" rows="3" placeholder="วางรหัสที่นี่เพื่อนำเข้า…" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit"></textarea>' +
+      '<div class="row" style="margin-top:8px"><button class="btn ghost" id="bkImp">⬇ นำเข้า (ทับข้อมูลในเครื่องนี้)</button><span id="bkMsg" class="muted small"></span></div></div></details>';
+  }
+  function bindBackup() {
+    var c = $('#bkCopy'); if (!c) return;
+    c.onclick = function () {
+      var code = btoa(unescape(encodeURIComponent(JSON.stringify(st))));
+      var ta = $('#bkText'); ta.value = code;
+      var done = function () { $('#bkMsg').textContent = 'คัดลอกแล้ว (' + code.length + ' ตัวอักษร)'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, function () { ta.select(); $('#bkMsg').textContent = 'กดคัดลอกจากช่องข้อความด้านล่างได้เลย'; });
+      else { ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} }
+    };
+    $('#bkImp').onclick = function () {
+      try {
+        var o = JSON.parse(decodeURIComponent(escape(atob($('#bkText').value.trim()))));
+        if (!o || typeof o !== 'object' || !o.done) throw 0;
+        if (!confirm('นำเข้าจะทับข้อมูลในเครื่องนี้ทั้งหมด ยืนยัน?')) return;
+        localStorage.setItem(KEY, JSON.stringify(o)); location.reload();
+      } catch (e) { $('#bkMsg').textContent = 'รหัสไม่ถูกต้อง'; }
+    };
+  }
+
+  /* reading progress, tts, focus */
+  var progEl = null;
+  function setProg(on) {
+    if (on) {
+      if (!progEl) { progEl = document.createElement('div'); progEl.className = 'readprog'; progEl.innerHTML = '<i></i>'; document.body.appendChild(progEl); }
+      progEl.style.display = 'block'; updProg();
+    } else if (progEl) progEl.style.display = 'none';
+  }
+  function updProg() {
+    if (!progEl || progEl.style.display === 'none') return;
+    var h = document.documentElement.scrollHeight - innerHeight;
+    progEl.firstChild.style.width = (h > 0 ? Math.min(100, scrollY / h * 100) : 0) + '%';
+  }
+  window.addEventListener('scroll', updProg, { passive: true });
+
+  var tts = { on: false, i: 0 };
+  function stopTTS() {
+    tts.on = false;
+    try { speechSynthesis.cancel(); } catch (e) {}
+    document.querySelectorAll('.speaking').forEach(function (e) { e.classList.remove('speaking'); });
+    var b = $('#ttsBtn'); if (b) b.textContent = '🔊 ฟังเสียงอ่าน';
+  }
+  function speakFrom(i) {
+    var els = [].slice.call(document.querySelectorAll('#rd p, #rd h4'));
+    if (!tts.on || i >= els.length) { stopTTS(); return; }
+    document.querySelectorAll('.speaking').forEach(function (e) { e.classList.remove('speaking'); });
+    var el = els[i]; el.classList.add('speaking');
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    var u = new SpeechSynthesisUtterance(el.textContent);
+    u.lang = 'th-TH'; u.rate = +($('#ttsRate') || { value: 1 }).value;
+    u.onend = function () { if (tts.on) { tts.i = i + 1; speakFrom(i + 1); } };
+    u.onerror = function () { stopTTS(); };
+    speechSynthesis.speak(u);
+  }
+
+  function applyLH() {
+    var v = st.lh || 0;
+    document.documentElement.style.setProperty('--lh', ['1.95', '2.25', '2.6'][v]);
+  }
+  function bindTools(code, id, k) {
+    setProg(true); applyLH();
+    $('#bmBtn').onclick = function () { if (st.bm[k]) delete st.bm[k]; else st.bm[k] = true; save(); this.textContent = st.bm[k] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก'; };
+    var tb = $('#ttsBtn');
+    if (!('speechSynthesis' in window)) { tb.style.display = 'none'; $('#ttsRate').style.display = 'none'; }
+    tb.onclick = function () {
+      if (tts.on) { stopTTS(); return; }
+      tts.on = true; tb.textContent = '⏹ หยุดอ่าน';
+      speakFrom(0);
+    };
+    $('#focusBtn').onclick = function () { document.body.classList.toggle('focus'); this.textContent = document.body.classList.contains('focus') ? '🧘 ออกจากโหมดโฟกัส' : '🧘 โหมดโฟกัส'; };
+    var lh = $('#lhSel'); lh.value = String(st.lh || 0);
+    lh.onchange = function () { st.lh = +lh.value; save(); applyLH(); };
+  }
+
+  /* flashcards (Leitner) */
+  function cardKey(code, q) { return code + ':' + q.id; }
+  function dueCards(code) {
+    var now = Date.now();
+    return qsOf(code).filter(function (q) { var c = st.fc[cardKey(code, q)]; return !c || c.due <= now; });
+  }
+  var DAY = 864e5;
+  function cardsView(code) {
+    var s = subj(code); if (!s) return notFound();
+    var unit = st.cu || 'all';
+    var html = '<div class="crumb"><a href="#/s/' + code + '">' + esc(s.name) + '</a> › แฟลชการ์ด</div><h1>🃏 แฟลชการ์ด</h1>' +
+      '<p class="muted">ทบทวนแบบเว้นช่วง: ใบที่จำได้จะกลับมาห่างขึ้น ใบที่จำไม่ได้จะกลับมาเร็ว — ใช้คำถามจากแบบทดสอบ (หน้าคำถาม / หลังคำตอบพร้อมคำอธิบาย)</p>' +
+      '<div class="q-ctl"><select id="cu"><option value="all">ทุกหน่วย</option>' + s.units.map(function (u) { return '<option value="' + u.no + '"' + (String(u.no) === String(unit) ? ' selected' : '') + '>หน่วย ' + th(u.no) + ' ' + esc(u.title) + '</option>'; }).join('') + '</select></div><div id="cwrap"></div>';
+    app.innerHTML = html;
+    $('#cu').onchange = function () { st.cu = this.value; save(); cardsView(code); };
+    var deck = dueCards(code).filter(function (q) { return unit === 'all' || String(q.u) === String(unit); });
+    var total = qsOf(code).filter(function (q) { return unit === 'all' || String(q.u) === String(unit); }).length;
+    shuffle(deck); deck = deck.slice(0, 20);
+    var i = 0, ok = 0;
+    var W = $('#cwrap');
+    function show() {
+      if (i >= deck.length) {
+        W.innerHTML = '<div class="card" style="text-align:center"><h2 style="margin-top:0">' + (deck.length ? 'จบรอบนี้แล้ว 🎉' : 'ไม่มีการ์ดที่ถึงเวลาทบทวน') + '</h2><p class="muted">' + (deck.length ? 'จำได้ ' + th(ok) + ' จาก ' + th(deck.length) + ' ใบ · ' : '') + 'การ์ดทั้งหมดในชุดนี้ ' + th(total) + ' ใบ</p><a class="btn" href="#/s/' + code + '/cards" onclick="setTimeout(function(){location.reload()},0)">เริ่มรอบใหม่</a></div>';
+        return;
+      }
+      var q = deck[i];
+      W.innerHTML = '<div class="row" style="margin-bottom:8px"><div class="bar" style="flex:1"><i style="width:' + (i / deck.length * 100) + '%"></i></div><span class="pill">' + th(i + 1) + ' / ' + th(deck.length) + '</span></div>' +
+        '<div class="card fcard"><div class="muted small">หน่วย ' + th(q.u) + ' · ' + th(q.t) + ' ' + esc(topicTitle(s, q.t)) + '</div><h2 style="font-size:1.25rem;line-height:1.7">' + esc(q.q) + '</h2><div id="ans"></div><button class="btn" id="showA">แสดงคำตอบ</button></div>';
+      $('#showA').onclick = function () {
+        $('#ans').innerHTML = '<div class="fb ok"><b>✓ ' + esc(q.c[q.a]) + '</b><div class="expl">' + esc(q.e) + '</div><a class="small" href="#/s/' + code + '/t/' + q.t + '" target="_blank" rel="noopener">เปิดอ่านเรื่อง ' + th(q.t) + ' ↗</a></div>' +
+          '<div class="row" style="margin:12px 0"><button class="btn ghost" data-r="1">😣 จำไม่ได้</button><button class="btn ghost" data-r="2">🤔 พอจำได้</button><button class="btn" data-r="3">😄 จำได้</button></div>';
+        this.style.display = 'none';
+        document.querySelectorAll('[data-r]').forEach(function (b) {
+          b.onclick = function () {
+            var r = +b.dataset.r;
+            st.fc[cardKey(code, q)] = { box: r, due: Date.now() + (r === 1 ? 0 : r === 2 ? DAY : 4 * DAY) };
+            if (r === 3) ok++; if (r === 1) deck.push(q);
+            save(); i++; show();
+          };
+        });
+      };
+    }
+    show();
+    document.title = 'แฟลชการ์ด · ติวสอบ มสธ.';
+  }
+
   function notFound() { app.innerHTML = '<div class="card"><h1>ไม่พบหน้านี้</h1><a class="btn" href="#/">กลับหน้าแรก</a></div>'; }
 
   /* ---------- router ---------- */
@@ -509,7 +671,9 @@
     var h = location.hash || '#/';
     $('#menuBtn').hidden = true;
     var m;
-    if ((m = h.match(/^#\/s\/([^/]+)\/t\/(.+)$/))) topicView(m[1], m[2]);
+    stopTTS(); document.body.classList.remove('focus'); setProg(false);
+    if ((m = h.match(/^#\/s\/([^/]+)\/cards$/))) cardsView(m[1]);
+    else if ((m = h.match(/^#\/s\/([^/]+)\/t\/(.+)$/))) topicView(m[1], m[2]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/practice$/))) practiceView(m[1]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/emph$/))) emphView(m[1]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/quiz\/u\/(\d+)$/))) {
