@@ -704,12 +704,20 @@
   function backupBox() {
     return '<details class="unit" style="margin-top:24px"><summary><span class="t">💾 สำรอง / ย้ายข้อมูลระหว่างเครื่อง (คอมพิวเตอร์ ↔ iPad)</span></summary><div class="body">' +
       '<p class="muted small">ความคืบหน้า โน้ต ไฮไลต์ บุ๊กมาร์ก ผลข้อสอบ และแฟลชการ์ด เก็บในแต่ละเครื่องแยกกัน — คัดลอกรหัสจากเครื่องหนึ่ง แล้ววางในอีกเครื่องเพื่อย้ายข้อมูล</p>' +
-      '<div class="row"><button class="btn" id="bkCopy">📋 คัดลอกรหัสสำรอง</button></div>' +
+      '<div class="row"><button class="btn" id="bkCopy">📋 คัดลอกรหัสสำรอง</button><button class="btn ghost" id="refreshBtn">🔄 อัปเดตเว็บเป็นเวอร์ชันล่าสุด</button></div>' +
       '<textarea id="bkText" rows="3" placeholder="วางรหัสที่นี่เพื่อนำเข้า…" style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit"></textarea>' +
       '<div class="row" style="margin-top:8px"><button class="btn ghost" id="bkImp">⬇ นำเข้า (ทับข้อมูลในเครื่องนี้)</button><span id="bkMsg" class="muted small"></span></div></div></details>';
   }
   function bindBackup() {
     var c = $('#bkCopy'); if (!c) return;
+    $('#refreshBtn').onclick = function () {
+      this.textContent = 'กำลังอัปเดต…';
+      var done = function () { location.reload(); };
+      Promise.all([
+        'serviceWorker' in navigator ? navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : 0,
+        window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : 0
+      ]).then(done, done);
+    };
     c.onclick = function () {
       var code = btoa(unescape(encodeURIComponent(JSON.stringify(st))));
       var ta = $('#bkText'); ta.value = code;
