@@ -183,6 +183,7 @@
       '<h1>' + th(t.id) + ' ' + esc(t.title) + '</h1>' +
       '<div class="rtools"><span class="pill">⏱ ประมาณ ' + th(Math.max(1, Math.round(t.blocks.reduce(function (a, b) { return a + (typeof b.x === 'string' ? b.x.length : 0); }, 0) / 800))) + ' นาที</span>' +
       '<button class="chip" id="bmBtn" aria-pressed="' + !!st.bm[key(code, id)] + '">' + (st.bm[key(code, id)] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก') + '</button>' +
+      '<span class="chip" id="rtChip" title="เวลาที่อ่านเรื่องนี้ (นับอัตโนมัติ หยุดเมื่อไม่ได้ใช้งาน 1 นาที)">⏱ 0:00</span>' +
       '<button class="chip" id="ttsBtn">🔊 ฟังเสียงอ่าน</button>' +
       '<select id="ttsRate" aria-label="ความเร็วเสียง"><option value="0.8">ช้า</option><option value="1" selected>ปกติ</option><option value="1.25">เร็ว</option></select>' +
       '<button class="chip" id="inkBtn">✏️ เขียนด้วยปากกา</button>' +
@@ -872,6 +873,8 @@
   function dkey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
   function fmtHM(sec) { var m = Math.floor(sec / 60); return m >= 60 ? Math.floor(m / 60) + ' ชม. ' + (m % 60) + ' นาที' : m + ' นาที'; }
   function todaySec() { return (st.tm && st.tm[dkey()]) || 0; }
+  var lastAct = Date.now();
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function (ev) { window.addEventListener(ev, function () { lastAct = Date.now(); }, { passive: true }); });
   var pom = { run: false, phase: 'f', end: 0 };
   function renderTm() {
     var b = $('#tmBtn'); if (!b) return;
@@ -880,8 +883,13 @@
     var tc = $('#todayStudy'); if (tc) tc.textContent = fmtHM(todaySec());
   }
   setInterval(function () {
+    var tm = location.hash.match(/^#\/s\/([^/]+)\/t\/(.+)$/), act = !document.hidden && Date.now() - lastAct < 60000, counted = false;
+    if (tm && act) {
+      var rk = key(tm[1], decodeURIComponent(tm[2])); st.rt = st.rt || {}; st.rt[rk] = (st.rt[rk] || 0) + 1; counted = true;
+      var rc = $('#rtChip'); if (rc) { rc.textContent = '⏱ ' + fmtT(st.rt[rk]); rc.classList.remove('idle'); }
+    } else { var rc2 = $('#rtChip'); if (rc2 && tm) { rc2.classList.add('idle'); if (!rc2.dataset.i) { var rk2 = key(tm[1], decodeURIComponent(tm[2])); rc2.textContent = '⏱ ' + fmtT((st.rt && st.rt[rk2]) || 0) + ' (พัก)'; } } }
+    if (counted || (pom.run && pom.phase === 'f' && !document.hidden)) { st.tm = st.tm || {}; st.tm[dkey()] = (st.tm[dkey()] || 0) + 1; if (todaySec() % 15 === 0) save(); }
     if (pom.run) {
-      if (pom.phase === 'f' && !document.hidden) { st.tm = st.tm || {}; st.tm[dkey()] = (st.tm[dkey()] || 0) + 1; if (todaySec() % 15 === 0) save(); }
       if (Date.now() >= pom.end) {
         pom.phase = pom.phase === 'f' ? 'b' : 'f'; pom.end = Date.now() + (pom.phase === 'f' ? 25 : 5) * 60000;
         try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}

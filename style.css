@@ -259,3 +259,4 @@ body.focus .inkbar{top:12px}
 #tmBtn{font-size:.85rem;white-space:nowrap}
 #tmBtn.on{background:var(--accent);color:#fff}
 .pill.warn{background:#c0392b;color:#fff}
+#rtChip.idle{opacity:.6}
