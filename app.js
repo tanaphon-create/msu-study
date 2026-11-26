@@ -16,6 +16,8 @@
   var TH = '๐๑๒๓๔๕๖๗๘๙';
   function th(s) { return String(s).replace(/\d/g, function (d) { return TH[+d]; }); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function qz(code) { return (window.QZS || {})[code] || {}; }
+  function curSubj() { return subj(st.cur) || SUBJECTS[0]; }
   function subj(code) { return SUBJECTS.filter(function (s) { return s.code === code; })[0]; }
   function flat(s) {
     if (s._flat) return s._flat;
@@ -66,7 +68,7 @@
     SUBJECTS.forEach(function (s) { var p = progress(s); tot.d += p.d; tot.n += p.n; });
     var remain = tot.n - tot.d;
     var perDay = left > 0 ? Math.ceil(remain / Math.max(1, left - 7)) : remain; // เผื่อ 7 วันสุดท้ายไว้ทบทวน
-    var html = quickActions() + '<div class="hero">' +
+    var html = subjSwitch() + quickActions() + '<div class="hero">' +
       '<div class="card"><div class="muted small">สอบวันที่ ๗–๘ กุมภาพันธ์ ๒๕๗๐</div>' +
       '<div class="count"><b>' + th(left) + '</b><span>วัน ก่อนวันสอบ</span></div>' +
       '<p class="muted" style="margin:.6em 0 0">' + (remain > 0
@@ -85,11 +87,12 @@
         '<div class="bar"><i style="width:' + p.pct + '%"></i></div>' +
         '<p class="muted small" style="margin:.5em 0 0">' + th(s.units.length) + ' หน่วย · อ่านแล้ว ' + th(p.d) + '/' + th(p.n) + ' เรื่อง' + (last ? ' · ต่อจากเดิมได้' : '') + '</p></a>';
     });
-    html += '</div><p class="muted small" style="margin-top:20px">เพิ่มอีก ๒ วิชาได้เมื่อส่งไฟล์มา · ข้อมูลความคืบหน้า โน้ต และไฮไลต์เก็บไว้ในเครื่องนี้ (เบราว์เซอร์) เท่านั้น</p>';
+    html += '</div><p class="muted small" style="margin-top:20px">ข้อมูลความคืบหน้า โน้ต และไฮไลต์เก็บไว้ในเครื่องนี้ (เบราว์เซอร์) เท่านั้น</p>';
     html += backupBox();
     app.innerHTML = html;
     document.title = 'ติวสอบ มสธ.';
     bindBackup();
+    document.querySelectorAll('[data-sw]').forEach(function (b) { b.onclick = function () { st.cur = b.dataset.sw; save(); home(); updateTabs('#/'); }; });
   }
 
   function subjectView(code) {
@@ -180,7 +183,7 @@
         (uq ? '<a class="btn small-btn" href="#/s/' + code + '/quiz/t/' + id + '">📝 ทำข้อสอบเรื่องนี้ (' + th(uq) + ' ข้อ)</a>' : '') + '</section>';
     }
     var lastOfUnit = !list[idx + 1] || list[idx + 1].u !== u;
-    var uz = (window.QZ || {})[u.no];
+    var uz = qz(code)[u.no];
     if (lastOfUnit && uz) {
       sumHtml += '<section class="keybox unitsum"><h2>📌 สรุปท้ายหน่วยที่ ' + th(u.no) + ' — ' + esc(u.title) + '</h2><ol class="emph">' +
         uz.emph.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ol>' +
@@ -378,7 +381,7 @@
     res.forEach(function (o) {
       var t = o.r.txt, a = Math.max(0, o.i - 70), b = Math.min(t.length, o.i + needle.length + 130);
       var sn = (a ? '…' : '') + esc(t.slice(a, o.i)) + '<mark>' + esc(t.slice(o.i, o.i + needle.length)) + '</mark>' + esc(t.slice(o.i + needle.length, b)) + (b < t.length ? '…' : '');
-      html += '<div class="res"><div class="where">หน่วย ' + th(o.r.x.u.no) + ' · ' + th(o.r.x.t.id) + ' ' + esc(o.r.x.t.title) + '</div><p>' + sn + '</p><a class="small" href="#/s/' + o.r.s.code + '/t/' + o.r.x.t.id + '">เปิดอ่าน →</a></div>';
+      html += '<div class="res"><div class="where">' + (SUBJECTS.length > 1 ? esc(o.r.s.name) + ' · ' : '') + 'หน่วย ' + th(o.r.x.u.no) + ' · ' + th(o.r.x.t.id) + ' ' + esc(o.r.x.t.title) + '</div><p>' + sn + '</p><a class="small" href="#/s/' + o.r.s.code + '/t/' + o.r.x.t.id + '">เปิดอ่าน →</a></div>';
     });
     if (!total) html += '<p>ไม่พบคำนี้ ลองใช้คำสั้นลงหรือสะกดอีกแบบ (ตัวเลขในหนังสือเป็นเลขไทย เช่น ๒๔๗๕)</p>';
     app.innerHTML = html;
@@ -388,7 +391,7 @@
   /* ---------- emphasis + quiz ---------- */
   function qsOf(code) {
     var out = [];
-    var Z = window.QZ || {};
+    var Z = qz(code);
     Object.keys(Z).forEach(function (u) {
       Z[u].qs.forEach(function (q, i) {
         out.push({ id: u + '-' + i, u: +u, t: q.t, q: q.q, c: q.c, a: q.a, e: q.e });
@@ -403,7 +406,7 @@
 
   function emphView(code) {
     var s = subj(code); if (!s) return notFound();
-    var Z = window.QZ || {};
+    var Z = qz(code);
     var html = '<div class="crumb"><a href="#/s/' + code + '">' + esc(s.name) + '</a> › เนื้อหาที่เน้นสอบ</div><h1>เนื้อหาที่เน้นสอบ</h1>' +
       '<p class="muted">สรุปประเด็นที่ต้องจำให้ได้ของแต่ละหน่วย — ย่อจากเอกสารการสอนโดยตรง (ตัวเลข ปี พ.ศ. และรายการต่างๆ ตรงกับหนังสือ) ใช้อ่านทวนก่อนทำแบบทดสอบ</p>' +
       '<div class="row" style="margin:8px 0 18px"><a class="btn" href="#/s/' + code + '/quiz">📝 ไปทำแบบทดสอบ</a></div>';
@@ -423,6 +426,7 @@
   function quizMenu(code) {
     var s = subj(code); if (!s) return notFound();
     var all = qsOf(code);
+    if (!all.length) { app.innerHTML = '<div class="crumb"><a href="#/s/' + code + '">' + esc(s.name) + '</a> › แบบทดสอบ</div><h1>แบบทดสอบ</h1><div class="card"><p>วิชานี้ยังไม่มีแบบทดสอบ — กำลังจัดทำ ระหว่างนี้ใช้ “กิจกรรมท้ายเรื่อง” ฝึกได้</p><a class="btn" href="#/s/' + code + '/practice">✍ ไปกิจกรรมท้ายเรื่อง</a></div>'; return; }
     var wrong = all.filter(function (q) { var r = st.qs && st.qs[code + ':' + q.id]; return r && r.last === false; });
     var done = all.filter(function (q) { return st.qs && st.qs[code + ':' + q.id]; }).length;
     var html = '<div class="crumb"><a href="#/s/' + code + '">' + esc(s.name) + '</a> › แบบทดสอบ</div><h1>แบบทดสอบ</h1>' +
@@ -433,7 +437,7 @@
       '<div class="card"><h3 style="margin-top:0">🔁 ทบทวนข้อที่ผิด</h3><p class="muted small">' + (wrong.length ? 'มี ' + th(wrong.length) + ' ข้อที่ยังตอบผิดล่าสุด' : 'ยังไม่มีข้อที่ผิด') + '</p><button class="btn" id="wrongBtn"' + (wrong.length ? '' : ' disabled style="opacity:.5"') + '>เริ่มทบทวน</button></div>' +
       '</div><h2>เลือกทำทีละหน่วย</h2><div class="grid">';
     s.units.forEach(function (u) {
-      var z = (window.QZ || {})[u.no]; if (!z) return;
+      var z = qz(code)[u.no]; if (!z) return;
       var d = z.qs.filter(function (q, i) { return st.qs && st.qs[code + ':' + u.no + '-' + i]; }).length;
       html += '<a class="unit-card" href="#/s/' + code + '/quiz/u/' + u.no + '"><div class="no">หน่วย ' + th(u.no) + '</div><h3>' + esc(u.title) + '</h3><div class="bar"><i style="width:' + (z.qs.length ? d / z.qs.length * 100 : 0) + '%"></i></div><p class="muted small" style="margin:.5em 0 0">' + th(z.qs.length) + ' ข้อ · ทำแล้ว ' + th(d) + accTxt(code, u.no) + '</p></a>';
     });
@@ -522,7 +526,7 @@
   /* ---------- tab bar / quick actions / search (iPad-friendly) ---------- */
   function updateTabs(h) {
     var tb = $('#tabbar'); if (!tb) return;
-    var s = SUBJECTS[0]; if (!s) { tb.style.display = 'none'; return; }
+    var s = curSubj(); if (!s) { tb.style.display = 'none'; return; }
     var last = st.last[s.code] || flat(s)[0].t.id;
     var tabs = [
       ['#/', '🏠', 'หน้าแรก'],
@@ -539,8 +543,13 @@
     if (document.body.classList.contains('searching')) { var q = $('#q'); q.focus(); q.select(); }
   };
 
+  function subjSwitch() {
+    if (SUBJECTS.length < 2) return '';
+    var c = curSubj();
+    return '<div class="chips" style="margin-bottom:12px">' + SUBJECTS.map(function (x) { return '<button class="chip' + (x.code === c.code ? ' on' : '') + '" data-sw="' + x.code + '">' + th(x.code) + ' ' + esc(x.name) + '</button>'; }).join('') + '</div>';
+  }
   function quickActions() {
-    var s = SUBJECTS[0]; if (!s) return '';
+    var s = curSubj(); if (!s) return '';
     var list = flat(s);
     var lastId = st.last[s.code];
     var cur = list.filter(function (x) { return x.t.id === lastId; })[0] || list[0];
@@ -579,6 +588,7 @@
     var cur = { svg: svg, art: art, k: k, code: code, id: id, tool: 'pen', color: '#c0392b', fingers: false, hlc: '#f1c40f', sz: 1 };
     function size() {
       var W = art.clientWidth, H = art.scrollHeight;
+      if (!W || !H) return;
       svg.style.height = H + 'px'; svg.setAttribute('viewBox', '0 0 1000 ' + (H * 1000 / W)); svg.setAttribute('preserveAspectRatio', 'none');
     }
     function draw() {
@@ -671,7 +681,7 @@
 
   /* ---------- study tools ---------- */
   function unitAcc(code, u) {
-    var z = (window.QZ || {})[u]; if (!z) return null;
+    var z = qz(code)[u]; if (!z) return null;
     var r = 0, w = 0;
     z.qs.forEach(function (q, i) { var x = st.qs && st.qs[code + ':' + u + '-' + i]; if (x) { r += x.r; w += x.w; } });
     return (r + w) >= 3 ? Math.round(r / (r + w) * 100) : null;
@@ -679,7 +689,7 @@
   function accTxt(code, u) { var a = unitAcc(code, u); return a === null ? '' : ' · แม่น ' + th(a) + '%'; }
 
   function todayCard(perDay) {
-    var s = SUBJECTS[0]; if (!s) return '';
+    var s = curSubj(); if (!s) return '';
     var next = flat(s).filter(function (x) { return !st.done[key(s.code, x.t.id)]; }).slice(0, Math.min(5, Math.max(1, perDay || 3)));
     var weak = null;
     s.units.forEach(function (u) { var a = unitAcc(s.code, u.no); if (a !== null && a < 75 && (weak === null || a < weak.a)) weak = { u: u, a: a }; });
@@ -825,6 +835,7 @@
     var h = location.hash || '#/';
     $('#menuBtn').hidden = true;
     var m;
+    var mc = h.match(/^#\/s\/([^/]+)/); if (mc && subj(mc[1]) && st.cur !== mc[1]) { st.cur = mc[1]; save(); }
     inkClose(); stopTTS(); document.body.classList.remove('focus'); document.body.classList.remove('searching'); setProg(false); updateTabs(h);
     if ((m = h.match(/^#\/s\/([^/]+)\/cards$/))) cardsView(m[1]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/t\/(.+)$/))) topicView(m[1], m[2]);
