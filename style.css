@@ -255,3 +255,7 @@ body.focus .inkbar{top:12px}
 .awbox textarea{width:100%;min-height:110px;box-sizing:border-box;border:1px solid var(--accent);border-radius:10px;padding:10px;font:inherit;line-height:1.7;background:var(--bg,#fff);color:inherit;margin:4px 0 6px}
 .aw-s{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
 .aw-s .chip.on{background:var(--accent);color:#fff}
+
+#tmBtn{font-size:.85rem;white-space:nowrap}
+#tmBtn.on{background:var(--accent);color:#fff}
+.pill.warn{background:#c0392b;color:#fff}
