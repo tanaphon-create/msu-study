@@ -11,6 +11,24 @@
   try { Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   Object.keys(st.hl || {}).forEach(function (k) { st.hl[k] = st.hl[k].map(function (w) { return typeof w === 'string' ? { t: w, n: '' } : w; }); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+  function awBox(code, tid) {
+    var k = code + '|' + tid; st.aw = st.aw || {}; st.ac = st.ac || {};
+    var v = st.ac[k];
+    return '<div class="awbox"><label class="small muted">✍️ เขียนคำตอบของฉัน (บันทึกอัตโนมัติ — ใช้ Apple Pencil/คีย์บอร์ดได้)</label>' +
+      '<textarea class="aw-t" data-k="' + esc(k) + '" placeholder="ลองตอบเองก่อน แล้วค่อยกด “ดูแนวตอบ”">' + esc(st.aw[k] || '') + '</textarea>' +
+      '<div class="aw-s" data-k="' + esc(k) + '"><span class="small muted">ตรวจตัวเองหลังดูแนวตอบ:</span> ' +
+      '<button type="button" class="chip' + (v === 1 ? ' on' : '') + '" data-v="1">✓ ตอบได้</button> ' +
+      '<button type="button" class="chip' + (v === 2 ? ' on' : '') + '" data-v="2">↻ ต้องทบทวน</button></div></div>';
+  }
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (t.classList && t.classList.contains('aw-t')) { st.aw = st.aw || {}; st.aw[t.dataset.k] = t.value; save(); }
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.aw-s button'); if (!b) return;
+    var box = b.parentNode, k = box.dataset.k, v = +b.dataset.v; st.ac = st.ac || {};
+    st.ac[k] = st.ac[k] === v ? 0 : v; save();
+    [].forEach.call(box.querySelectorAll('button'), function (x) { x.classList.toggle('on', st.ac[k] === +x.dataset.v); });
+  });
 
   /* ---------- helpers ---------- */
   var TH = '๐๑๒๓๔๕๖๗๘๙';
@@ -196,7 +214,7 @@
         var title = b.x[0] ? b.x[0].x : 'กิจกรรม';
         acts += '<section class="act"><h3>' + esc(th(title)) + '</h3>' + blocks(b.x.slice(1)) + '<div data-ans></div></section>';
       } else if (b.t === 'ans') {
-        var a = '<details class="ans"><summary>ดูแนวตอบ</summary>' + blocks(b.x.slice(1)) + '</details>';
+        var a = awBox(code, t.id) + '<details class="ans"><summary>ดูแนวตอบ</summary>' + blocks(b.x.slice(1)) + '</details>';
         if (acts.indexOf('<div data-ans></div>') >= 0) acts = acts.replace('<div data-ans></div>', a);
         else acts += '<section class="act">' + a + '</section>';
       } else {
@@ -344,7 +362,7 @@
     function draw() {
       $('#plist').innerHTML = items.map(function (it) {
         return '<section class="act"><h3>' + th(it.x.t.id) + ' ' + esc(it.x.t.title) + '</h3>' + blocks(it.a.x.slice(1)) +
-          (it.n ? '<details class="ans"><summary>ดูแนวตอบ</summary>' + blocks(it.n.x.slice(1)) + '</details>' : '') +
+          awBox(code, it.x.t.id) + (it.n ? '<details class="ans"><summary>ดูแนวตอบ</summary>' + blocks(it.n.x.slice(1)) + '</details>' : '') +
           '<p class="small" style="margin:8px 0 0"><a href="#/s/' + code + '/t/' + it.x.t.id + '">เปิดเนื้อหาเรื่องนี้ →</a></p></section>';
       }).join('') || '<p class="muted">ไม่มีกิจกรรม</p>';
     }

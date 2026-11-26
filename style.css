@@ -251,3 +251,7 @@ svg.ink .hlstroke{mix-blend-mode:multiply;opacity:.45}
 body.focus .inkbar{top:12px}
 .inkbar #inkSize{font-size:.85rem;padding:0 10px}
 .inkbar .btn{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:1rem;padding:0 18px}
+.awbox{margin-top:12px}
+.awbox textarea{width:100%;min-height:110px;box-sizing:border-box;border:1px solid var(--accent);border-radius:10px;padding:10px;font:inherit;line-height:1.7;background:var(--bg,#fff);color:inherit;margin:4px 0 6px}
+.aw-s{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.aw-s .chip.on{background:var(--accent);color:#fff}
