@@ -576,7 +576,7 @@
     var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'ink'); art.appendChild(svg);
     var data = st.ink[k] || (st.ink[k] = { fs: st.fs, s: [] });
     if (!data.s.length) delete st.ink[k];
-    var cur = { svg: svg, art: art, k: k, code: code, id: id, tool: 'pen', color: '#c0392b', fingers: false };
+    var cur = { svg: svg, art: art, k: k, code: code, id: id, tool: 'pen', color: '#c0392b', fingers: false, hlc: '#f1c40f', sz: 1 };
     function size() {
       var W = art.clientWidth, H = art.scrollHeight;
       svg.style.height = H + 'px'; svg.setAttribute('viewBox', '0 0 1000 ' + (H * 1000 / W)); svg.setAttribute('preserveAspectRatio', 'none');
@@ -612,7 +612,7 @@
       e.preventDefault(); try { svg.setPointerCapture(e.pointerId); } catch (_) {};
       if (cur.tool === 'erase') { erasing = true; erase(e); return; }
       var hl = cur.tool === 'hl';
-      cs = { c: hl ? '#f1c40f' : cur.color, w: hl ? 26 : (e.pointerType === 'pen' ? 3.2 : 4), h: hl, p: [pt(e)] };
+      cs = { c: hl ? cur.hlc : cur.color, w: Math.round((hl ? 26 : (e.pointerType === 'pen' ? 3.2 : 4)) * cur.sz * 10) / 10, h: hl, p: [pt(e)] };
       cs.el = document.createElementNS(SVGNS, 'path');
       cs.el.setAttribute('stroke', cs.c); cs.el.setAttribute('stroke-width', cs.w); cs.el.setAttribute('fill', 'none');
       cs.el.setAttribute('stroke-linecap', 'round'); cs.el.setAttribute('stroke-linejoin', 'round'); if (hl) cs.el.setAttribute('class', 'hlstroke');
@@ -649,16 +649,17 @@
     bar = document.createElement('div'); bar.className = 'inkbar';
     bar.innerHTML =
       '<button data-t="pen" data-c="#c0392b" style="color:#c0392b">●</button><button data-t="pen" data-c="#1f5fbf" style="color:#1f5fbf">●</button><button data-t="pen" data-c="#1f2328" style="color:#1f2328">●</button><button data-t="pen" data-c="#1e8449" style="color:#1e8449">●</button>' +
-      '<button data-t="hl" title="ไฮไลต์เส้นหนา">🖍</button><button data-t="erase" title="ยางลบ (ลบทีละเส้น)">🧽</button>' +
+      '<button data-t="hl" data-c="#f1c40f" style="background:#f9e79f" title="ปากกาไฮไลต์สีเหลือง">🖍</button><button data-t="hl" data-c="#ff6fa8" style="background:#ffc4dc" title="ปากกาไฮไลต์สีชมพู">🖍</button><button data-t="hl" data-c="#43c75d" style="background:#b8f0c2" title="ปากกาไฮไลต์สีเขียว">🖍</button><button data-t="hl" data-c="#3aa0ff" style="background:#b9defe" title="ปากกาไฮไลต์สีฟ้า">🖍</button><button id="inkSize" title="ขนาดเส้น">เส้น: กลาง</button><button data-t="erase" title="ยางลบ (ลบทีละเส้น)">🧽</button>' +
       '<button id="inkUndo" title="ย้อนกลับ">↩︎</button><button id="inkClear" title="ล้างทั้งหน้า">🗑</button>' +
       '<button id="inkFinger" title="ให้นิ้วเขียนได้ด้วย (ปกติใช้นิ้วเลื่อนหน้า ปากกาเขียน)">☝︎ นิ้วเขียน: ปิด</button><button id="inkDone" class="btn small-btn">เสร็จ</button>';
     document.body.appendChild(bar);
-    function mark() { bar.querySelectorAll('[data-t]').forEach(function (b) { b.classList.toggle('sel', b.dataset.t === ink.tool && (b.dataset.t !== 'pen' || b.dataset.c === ink.color)); }); }
+    function mark() { bar.querySelectorAll('[data-t]').forEach(function (b) { b.classList.toggle('sel', b.dataset.t === ink.tool && (!b.dataset.c || b.dataset.c === (ink.tool === 'hl' ? ink.hlc : ink.color))); }); }
     mark();
-    bar.querySelectorAll('[data-t]').forEach(function (b) { b.onclick = function () { ink.tool = b.dataset.t; if (b.dataset.c) ink.color = b.dataset.c; mark(); }; });
+    bar.querySelectorAll('[data-t]').forEach(function (b) { b.onclick = function () { ink.tool = b.dataset.t; if (b.dataset.c) { if (b.dataset.t === 'hl') ink.hlc = b.dataset.c; else ink.color = b.dataset.c; } mark(); }; });
     $('#inkUndo').onclick = function () { var d = st.ink[ink.k]; if (d && d.s.length) { d.s.pop(); if (!d.s.length) delete st.ink[ink.k]; save(); ink.draw(); } };
     $('#inkClear').onclick = function () { if (st.ink[ink.k] && confirm('ล้างลายเส้นทั้งหมดของเรื่องนี้?')) { delete st.ink[ink.k]; save(); ink.draw(); } };
     $('#inkFinger').onclick = function () { ink.fingers = !ink.fingers; this.textContent = '☝︎ นิ้วเขียน: ' + (ink.fingers ? 'เปิด' : 'ปิด'); this.classList.toggle('sel', ink.fingers); };
+    $('#inkSize').onclick = function () { var L = [[0.6, 'บาง'], [1, 'กลาง'], [1.7, 'หนา']]; var i = L.findIndex(function (x) { return x[0] === ink.sz; }); var n = L[(i + 1) % 3]; ink.sz = n[0]; this.textContent = 'เส้น: ' + n[1]; };
     $('#inkDone').onclick = inkClose2;
     $('#inkBtn').textContent = '✏️ ปิดโหมดปากกา';
   }

@@ -249,3 +249,5 @@ svg.ink .hlstroke{mix-blend-mode:multiply;opacity:.45}
 .inkbar #inkFinger{font-size:.85rem}
 .inkwarn{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--surface2);color:var(--warn);font-size:.88rem}
 body.focus .inkbar{top:12px}
+.inkbar #inkSize{font-size:.85rem;padding:0 10px}
+.inkbar .btn{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:1rem;padding:0 18px}
