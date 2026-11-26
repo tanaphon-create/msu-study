@@ -775,16 +775,53 @@
     document.querySelectorAll('.speaking').forEach(function (e) { e.classList.remove('speaking'); });
     var b = $('#ttsBtn'); if (b) b.textContent = '🔊 ฟังเสียงอ่าน';
   }
-  function speakFrom(i) {
+  var ttsKeep = null;
+  function ttsClean(t) {
+    return t.replace(/\s+/g, ' ')
+      .replace(/ป\.พ\.พ\./g, 'ประมวลกฎหมายแพ่งและพาณิชย์')
+      .replace(/ป\.วิ\.พ\./g, 'ประมวลกฎหมายวิธีพิจารณาความแพ่ง')
+      .replace(/ป\.อ\./g, 'ประมวลกฎหมายอาญา')
+      .replace(/พ\.ร\.บ\./g, 'พระราชบัญญัติ')
+      .replace(/ม\.ร\.ว\./g, 'หม่อมราชวงศ์')
+      .replace(/(^|[\s(“"])ม\.\s?(?=[0-9๐-๙])/g, '$1มาตรา ')
+      .replace(/ว\.\s?(?=[0-9๐-๙])/g, 'วรรค ')
+      .replace(/ฎีกา(?=[0-9๐-๙])/g, 'ฎีกา ')
+      .replace(/[“”"()\[\]]/g, ' ');
+  }
+  function ttsChunks(t) {
+    var parts = ttsClean(t).replace(/([.!?;:])\s+/g, '$1\u0001').replace(/\s{2,}/g, '\u0001').split('\u0001'), out = [], cur = '';
+    parts.forEach(function (p) {
+      p = p.trim(); if (!p) return;
+      if ((cur + ' ' + p).length > 140 && cur) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+    });
+    if (cur) out.push(cur);
+    var res = [];
+    out.forEach(function (c) { while (c.length > 180) { var k = c.lastIndexOf(' ', 170); if (k < 60) k = 170; res.push(c.slice(0, k)); c = c.slice(k).trim(); } if (c) res.push(c); });
+    return res.length ? res : [''];
+  }
+  function ttsVoice() {
+    var v = (speechSynthesis.getVoices() || []).filter(function (x) { return /^th/i.test(x.lang); });
+    if (!v.length) return null;
+    v.sort(function (a, b) { return (/premium|enhanced|เพิ่ม/i.test(b.name) ? 1 : 0) - (/premium|enhanced|เพิ่ม/i.test(a.name) ? 1 : 0); });
+    return v[0];
+  }
+  function speakFrom(i, j) {
     var els = [].slice.call(document.querySelectorAll('#rd p, #rd h4'));
     if (!tts.on || i >= els.length) { stopTTS(); return; }
-    document.querySelectorAll('.speaking').forEach(function (e) { e.classList.remove('speaking'); });
-    var el = els[i]; el.classList.add('speaking');
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    var u = new SpeechSynthesisUtterance(el.textContent);
+    var el = els[i], ch = ttsChunks(el.textContent); j = j || 0;
+    if (j === 0) {
+      document.querySelectorAll('.speaking').forEach(function (e) { e.classList.remove('speaking'); });
+      el.classList.add('speaking');
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    var u = ttsKeep = new SpeechSynthesisUtterance(ch[j]);
+    var vc = ttsVoice(); if (vc) u.voice = vc;
     u.lang = 'th-TH'; u.rate = +($('#ttsRate') || { value: 1 }).value;
-    u.onend = function () { if (tts.on) { tts.i = i + 1; speakFrom(i + 1); } };
-    u.onerror = function () { stopTTS(); };
+    u.onend = function () {
+      if (!tts.on) return;
+      if (j + 1 < ch.length) speakFrom(i, j + 1); else { tts.i = i + 1; speakFrom(i + 1, 0); }
+    };
+    u.onerror = function (e) { if (e && (e.error === 'canceled' || e.error === 'interrupted')) return; stopTTS(); };
     speechSynthesis.speak(u);
   }
 
