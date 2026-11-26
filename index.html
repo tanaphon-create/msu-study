@@ -8,6 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#8c2f39">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ติวสอบ มสธ.">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,12 +26,14 @@
     <input id="q" type="search" placeholder="ค้นหาคำ/เนื้อหาในทุกหน่วย…" autocomplete="off" aria-label="ค้นหา">
   </form>
   <div class="tools">
+    <button class="icon-btn" id="searchBtn" aria-label="ค้นหา">🔍</button>
     <button class="icon-btn" id="fsDown" aria-label="ลดขนาดตัวอักษร">A−</button>
     <button class="icon-btn" id="fsUp" aria-label="เพิ่มขนาดตัวอักษร">A+</button>
     <button class="icon-btn" id="themeBtn" aria-label="สลับโหมดสว่าง/มืด">🌓</button>
   </div>
 </header>
 <div id="app" class="app" aria-live="polite"></div>
+<nav class="tabbar" id="tabbar" aria-label="เมนูหลัก"></nav>
 <noscript><p style="padding:24px">ต้องเปิด JavaScript เพื่อใช้งานเว็บนี้</p></noscript>
 <script src="data/10151.js"></script>
 <script src="data/key10151.js"></script>
@@ -43,5 +53,6 @@
 <script src="data/q/14.js"></script>
 <script src="data/q/15.js"></script>
 <script src="app.js"></script>
+<script>if("serviceWorker"in navigator&&location.protocol.startsWith("http")){addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
 </body>
 </html>

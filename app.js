@@ -66,7 +66,7 @@
     SUBJECTS.forEach(function (s) { var p = progress(s); tot.d += p.d; tot.n += p.n; });
     var remain = tot.n - tot.d;
     var perDay = left > 0 ? Math.ceil(remain / Math.max(1, left - 7)) : remain; // เผื่อ 7 วันสุดท้ายไว้ทบทวน
-    var html = '<div class="hero">' +
+    var html = quickActions() + '<div class="hero">' +
       '<div class="card"><div class="muted small">สอบวันที่ ๗–๘ กุมภาพันธ์ ๒๕๗๐</div>' +
       '<div class="count"><b>' + th(left) + '</b><span>วัน ก่อนวันสอบ</span></div>' +
       '<p class="muted" style="margin:.6em 0 0">' + (remain > 0
@@ -164,8 +164,9 @@
       '<button class="chip" id="bmBtn" aria-pressed="' + !!st.bm[key(code, id)] + '">' + (st.bm[key(code, id)] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก') + '</button>' +
       '<button class="chip" id="ttsBtn">🔊 ฟังเสียงอ่าน</button>' +
       '<select id="ttsRate" aria-label="ความเร็วเสียง"><option value="0.8">ช้า</option><option value="1" selected>ปกติ</option><option value="1.25">เร็ว</option></select>' +
+      '<details class="moretools"><summary class="chip">⚙ ปรับการอ่าน</summary><div class="morebox">' +
       '<button class="chip" id="focusBtn">🧘 โหมดโฟกัส</button>' +
-      '<select id="lhSel" aria-label="ระยะบรรทัด"><option value="0">บรรทัดมาตรฐาน</option><option value="1">บรรทัดห่าง</option><option value="2">ห่างมาก</option></select></div>';
+      '<select id="lhSel" aria-label="ระยะบรรทัด"><option value="0">บรรทัดมาตรฐาน</option><option value="1">บรรทัดห่าง</option><option value="2">ห่างมาก</option></select></div></details></div>';
     if (cur.first && sec.intro && sec.intro.length) {
       body += '<details class="intro"><summary>แนวคิดและวัตถุประสงค์ของตอนที่ ' + th(sec.id) + ' — ' + esc(sec.title) + '</summary>' + blocks(sec.intro) + '</details>';
     }
@@ -491,7 +492,7 @@
       '<div class="row" style="margin-top:10px"><a class="small" href="#/s/' + run.code + '/t/' + q.t + '" target="_blank" rel="noopener">เปิดอ่านเนื้อหาเรื่อง ' + th(q.t) + ' ↗</a></div>' +
       '<button class="btn" id="nextQ" style="margin-top:12px">' + (last ? 'ดูผลคะแนน' : 'ข้อต่อไป →') + '</button></div>';
     $('#nextQ').onclick = function () { run.i++; if (run.i >= run.items.length) resultQ(); else drawQ(); };
-    $('#nextQ').focus();
+    var nq = $('#nextQ'); nq.focus({ preventScroll: true }); setTimeout(function () { nq.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, 60);
   }
 
   function resultQ() {
@@ -515,6 +516,48 @@
     var rb = $('#retryW'); if (rb) rb.onclick = function () { startQuiz(run.code, shuffle(run.wrong.map(function (x) { return x.q; })), 'ทำซ้ำข้อที่ผิด'); };
   }
 
+
+
+  /* ---------- tab bar / quick actions / search (iPad-friendly) ---------- */
+  function updateTabs(h) {
+    var tb = $('#tabbar'); if (!tb) return;
+    var s = SUBJECTS[0]; if (!s) { tb.style.display = 'none'; return; }
+    var last = st.last[s.code] || flat(s)[0].t.id;
+    var tabs = [
+      ['#/', '🏠', 'หน้าแรก'],
+      ['#/s/' + s.code + '/t/' + last, '📖', 'อ่าน'],
+      ['#/s/' + s.code + '/quiz', '📝', 'ทดสอบ'],
+      ['#/s/' + s.code + '/cards', '🃏', 'การ์ด'],
+      ['#/review', '⭐', 'โน้ต']
+    ];
+    var act = /\/quiz/.test(h) ? 2 : /\/cards/.test(h) ? 3 : /review/.test(h) ? 4 : /^#\/s\//.test(h) ? 1 : (/^#\/search/.test(h) ? -1 : 0);
+    tb.innerHTML = tabs.map(function (t, i) { return '<a href="' + t[0] + '" class="' + (i === act ? 'on' : '') + '"><span class="ti">' + t[1] + '</span><span>' + t[2] + '</span></a>'; }).join('');
+  }
+  $('#searchBtn').onclick = function () {
+    document.body.classList.toggle('searching');
+    if (document.body.classList.contains('searching')) { var q = $('#q'); q.focus(); q.select(); }
+  };
+
+  function quickActions() {
+    var s = SUBJECTS[0]; if (!s) return '';
+    var list = flat(s);
+    var lastId = st.last[s.code];
+    var cur = list.filter(function (x) { return x.t.id === lastId; })[0] || list[0];
+    var firstTime = !st.last[s.code];
+    return '<a class="bigcta" href="#/s/' + s.code + '/t/' + cur.t.id + '"><span class="bi">▶</span><span><b>' + (firstTime ? 'เริ่มอ่าน' : 'อ่านต่อจากเดิม') + '</b><br><small>' + th(cur.t.id) + ' ' + esc(cur.t.title) + '</small></span></a>' +
+      '<div class="quick">' +
+      '<a href="#/s/' + s.code + '/quiz"><span class="qi">📝</span>ทำแบบทดสอบ</a>' +
+      '<a href="#/s/' + s.code + '/cards"><span class="qi">🃏</span>แฟลชการ์ด</a>' +
+      '<a href="#/s/' + s.code + '/emph"><span class="qi">🎯</span>เนื้อหาที่เน้น</a>' +
+      '<a href="#/s/' + s.code + '"><span class="qi">📚</span>สารบัญทุกหน่วย</a></div>';
+  }
+
+  /* คีย์ลัดในแบบทดสอบ (คอมพิวเตอร์/คีย์บอร์ด iPad): 1-4 เลือกตอบ, Enter/Space ข้อต่อไป */
+  document.addEventListener('keydown', function (e) {
+    if (!document.querySelector('.qcard') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key >= '1' && e.key <= '4') { var c = document.querySelectorAll('.choice')[+e.key - 1]; if (c && !c.disabled) { e.preventDefault(); c.click(); } }
+    else if ((e.key === 'Enter' || e.key === ' ') && $('#nextQ')) { e.preventDefault(); $('#nextQ').click(); }
+  });
 
   /* ---------- study tools ---------- */
   function unitAcc(code, u) {
@@ -671,7 +714,7 @@
     var h = location.hash || '#/';
     $('#menuBtn').hidden = true;
     var m;
-    stopTTS(); document.body.classList.remove('focus'); setProg(false);
+    stopTTS(); document.body.classList.remove('focus'); document.body.classList.remove('searching'); setProg(false); updateTabs(h);
     if ((m = h.match(/^#\/s\/([^/]+)\/cards$/))) cardsView(m[1]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/t\/(.+)$/))) topicView(m[1], m[2]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/practice$/))) practiceView(m[1]);
