@@ -7,7 +7,7 @@
   var app = $('#app');
 
   /* ---------- state ---------- */
-  var st = { done: {}, notes: {}, hl: {}, last: {}, ps: {}, fs: 18, theme: 'auto', bm: {}, fc: {}, lh: 0 };
+  var st = { done: {}, notes: {}, hl: {}, last: {}, ps: {}, fs: 18, theme: 'auto', bm: {}, fc: {}, lh: 0, ink: {} };
   try { Object.assign(st, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   Object.keys(st.hl || {}).forEach(function (k) { st.hl[k] = st.hl[k].map(function (w) { return typeof w === 'string' ? { t: w, n: '' } : w; }); });
   function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
@@ -164,6 +164,7 @@
       '<button class="chip" id="bmBtn" aria-pressed="' + !!st.bm[key(code, id)] + '">' + (st.bm[key(code, id)] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก') + '</button>' +
       '<button class="chip" id="ttsBtn">🔊 ฟังเสียงอ่าน</button>' +
       '<select id="ttsRate" aria-label="ความเร็วเสียง"><option value="0.8">ช้า</option><option value="1" selected>ปกติ</option><option value="1.25">เร็ว</option></select>' +
+      '<button class="chip" id="inkBtn">✏️ เขียนด้วยปากกา</button>' +
       '<details class="moretools"><summary class="chip">⚙ ปรับการอ่าน</summary><div class="morebox">' +
       '<button class="chip" id="focusBtn">🧘 โหมดโฟกัส</button>' +
       '<select id="lhSel" aria-label="ระยะบรรทัด"><option value="0">บรรทัดมาตรฐาน</option><option value="1">บรรทัดห่าง</option><option value="2">ห่างมาก</option></select></div></details></div>';
@@ -559,6 +560,114 @@
     else if ((e.key === 'Enter' || e.key === ' ') && $('#nextQ')) { e.preventDefault(); $('#nextQ').click(); }
   });
 
+
+  /* ---------- ปากกา / Apple Pencil (วาดทับหน้าอ่าน เก็บแยกรายเรื่อง) ---------- */
+  var ink = null;
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function inkClose() {
+    var b = document.querySelector('.inkbar'); if (b) b.remove();
+    var sv = document.querySelector('svg.ink'); if (sv) { sv.classList.remove('on'); }
+    ink = null;
+  }
+  function pathD(p) { return p.map(function (q, i) { return (i ? 'L' : 'M') + q[0] + ' ' + q[1]; }).join(' ') + (p.length === 1 ? ' l0.1 0' : ''); }
+  function inkInit(code, id, k) {
+    var art = $('.article'); if (!art) return;
+    var old = art.querySelector('svg.ink'); if (old) old.remove();
+    var svg = document.createElementNS(SVGNS, 'svg'); svg.setAttribute('class', 'ink'); art.appendChild(svg);
+    var data = st.ink[k] || (st.ink[k] = { fs: st.fs, s: [] });
+    if (!data.s.length) delete st.ink[k];
+    var cur = { svg: svg, art: art, k: k, code: code, id: id, tool: 'pen', color: '#c0392b', fingers: false };
+    function size() {
+      var W = art.clientWidth, H = art.scrollHeight;
+      svg.style.height = H + 'px'; svg.setAttribute('viewBox', '0 0 1000 ' + (H * 1000 / W)); svg.setAttribute('preserveAspectRatio', 'none');
+    }
+    function draw() {
+      svg.innerHTML = '';
+      ((st.ink[k] || {}).s || []).forEach(function (stroke, i) {
+        var p = document.createElementNS(SVGNS, 'path');
+        p.setAttribute('d', pathD(stroke.p)); p.setAttribute('stroke', stroke.c); p.setAttribute('stroke-width', stroke.w);
+        p.setAttribute('fill', 'none'); p.setAttribute('stroke-linecap', 'round'); p.setAttribute('stroke-linejoin', 'round');
+        if (stroke.h) p.setAttribute('class', 'hlstroke');
+        p.dataset.i = i; svg.appendChild(p);
+      });
+    }
+    cur.size = size; cur.draw = draw; size(); draw();
+    ink = cur;
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(function () { size(); }).observe(art);
+    var badge = (st.ink[k] && st.ink[k].fs !== st.fs);
+    if (badge) { var warn = document.createElement('div'); warn.className = 'inkwarn'; warn.textContent = 'ขนาดตัวอักษรตอนนี้ไม่เท่าตอนเขียน ลายเส้นอาจเลื่อนจากตำแหน่งเดิม (ปรับ A+/A− กลับให้เท่าเดิมได้)'; art.insertBefore(warn, art.firstChild); }
+
+    function pt(e) { var r = svg.getBoundingClientRect(); return [Math.round((e.clientX - r.left) / r.width * 10000) / 10, Math.round((e.clientY - r.top) / r.width * 10000) / 10]; }
+    var cs = null, lastY = null, erasing = false;
+    function erase(e) {
+      var q = pt(e), arr = (st.ink[k] || { s: [] }).s, hit = false;
+      for (var i = arr.length - 1; i >= 0; i--) {
+        if (arr[i].p.some(function (a) { return Math.abs(a[0] - q[0]) < 14 && Math.abs(a[1] - q[1]) < 14; })) { arr.splice(i, 1); hit = true; }
+      }
+      if (hit) { draw(); save(); }
+    }
+    svg.addEventListener('pointerdown', function (e) {
+      if (!svg.classList.contains('on')) return;
+      if (e.pointerType === 'touch' && !cur.fingers) { lastY = e.clientY; try { svg.setPointerCapture(e.pointerId); } catch (_) {}; return; }
+      e.preventDefault(); try { svg.setPointerCapture(e.pointerId); } catch (_) {};
+      if (cur.tool === 'erase') { erasing = true; erase(e); return; }
+      var hl = cur.tool === 'hl';
+      cs = { c: hl ? '#f1c40f' : cur.color, w: hl ? 26 : (e.pointerType === 'pen' ? 3.2 : 4), h: hl, p: [pt(e)] };
+      cs.el = document.createElementNS(SVGNS, 'path');
+      cs.el.setAttribute('stroke', cs.c); cs.el.setAttribute('stroke-width', cs.w); cs.el.setAttribute('fill', 'none');
+      cs.el.setAttribute('stroke-linecap', 'round'); cs.el.setAttribute('stroke-linejoin', 'round'); if (hl) cs.el.setAttribute('class', 'hlstroke');
+      cs.el.setAttribute('d', pathD(cs.p)); svg.appendChild(cs.el);
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (lastY !== null && e.pointerType === 'touch' && !cur.fingers) { window.scrollBy(0, lastY - e.clientY); lastY = e.clientY; return; }
+      if (erasing) { erase(e); return; }
+      if (!cs) return;
+      var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+      if (!evs.length) evs = [e];
+      evs.forEach(function (ev) {
+        var q = pt(ev), l = cs.p[cs.p.length - 1];
+        if (Math.abs(q[0] - l[0]) + Math.abs(q[1] - l[1]) > 1.2) cs.p.push(q);
+      });
+      cs.el.setAttribute('d', pathD(cs.p));
+    });
+    function end() {
+      lastY = null; erasing = false;
+      if (!cs) return;
+      var d = st.ink[k] || (st.ink[k] = { fs: st.fs, s: [] });
+      d.fs = st.fs; d.s.push({ c: cs.c, w: cs.w, h: cs.h, p: cs.p });
+      cs = null; save(); draw();
+    }
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+    svg.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  function inkToggle() {
+    if (!ink) return;
+    var svg = ink.svg, bar = document.querySelector('.inkbar');
+    if (bar) { inkClose2(); return; }
+    ink.size(); svg.classList.add('on');
+    bar = document.createElement('div'); bar.className = 'inkbar';
+    bar.innerHTML =
+      '<button data-t="pen" data-c="#c0392b" style="color:#c0392b">●</button><button data-t="pen" data-c="#1f5fbf" style="color:#1f5fbf">●</button><button data-t="pen" data-c="#1f2328" style="color:#1f2328">●</button><button data-t="pen" data-c="#1e8449" style="color:#1e8449">●</button>' +
+      '<button data-t="hl" title="ไฮไลต์เส้นหนา">🖍</button><button data-t="erase" title="ยางลบ (ลบทีละเส้น)">🧽</button>' +
+      '<button id="inkUndo" title="ย้อนกลับ">↩︎</button><button id="inkClear" title="ล้างทั้งหน้า">🗑</button>' +
+      '<button id="inkFinger" title="ให้นิ้วเขียนได้ด้วย (ปกติใช้นิ้วเลื่อนหน้า ปากกาเขียน)">☝︎ นิ้วเขียน: ปิด</button><button id="inkDone" class="btn small-btn">เสร็จ</button>';
+    document.body.appendChild(bar);
+    function mark() { bar.querySelectorAll('[data-t]').forEach(function (b) { b.classList.toggle('sel', b.dataset.t === ink.tool && (b.dataset.t !== 'pen' || b.dataset.c === ink.color)); }); }
+    mark();
+    bar.querySelectorAll('[data-t]').forEach(function (b) { b.onclick = function () { ink.tool = b.dataset.t; if (b.dataset.c) ink.color = b.dataset.c; mark(); }; });
+    $('#inkUndo').onclick = function () { var d = st.ink[ink.k]; if (d && d.s.length) { d.s.pop(); if (!d.s.length) delete st.ink[ink.k]; save(); ink.draw(); } };
+    $('#inkClear').onclick = function () { if (st.ink[ink.k] && confirm('ล้างลายเส้นทั้งหมดของเรื่องนี้?')) { delete st.ink[ink.k]; save(); ink.draw(); } };
+    $('#inkFinger').onclick = function () { ink.fingers = !ink.fingers; this.textContent = '☝︎ นิ้วเขียน: ' + (ink.fingers ? 'เปิด' : 'ปิด'); this.classList.toggle('sel', ink.fingers); };
+    $('#inkDone').onclick = inkClose2;
+    $('#inkBtn').textContent = '✏️ ปิดโหมดปากกา';
+  }
+  function inkClose2() {
+    var bar = document.querySelector('.inkbar'); if (bar) bar.remove();
+    if (ink) ink.svg.classList.remove('on');
+    var b = $('#inkBtn'); if (b) b.textContent = '✏️ เขียนด้วยปากกา';
+  }
+
   /* ---------- study tools ---------- */
   function unitAcc(code, u) {
     var z = (window.QZ || {})[u]; if (!z) return null;
@@ -647,7 +756,8 @@
     document.documentElement.style.setProperty('--lh', ['1.95', '2.25', '2.6'][v]);
   }
   function bindTools(code, id, k) {
-    setProg(true); applyLH();
+    setProg(true); applyLH(); inkInit(code, id, k);
+    $('#inkBtn').onclick = inkToggle;
     $('#bmBtn').onclick = function () { if (st.bm[k]) delete st.bm[k]; else st.bm[k] = true; save(); this.textContent = st.bm[k] ? '★ บุ๊กมาร์กแล้ว' : '☆ บุ๊กมาร์ก'; };
     var tb = $('#ttsBtn');
     if (!('speechSynthesis' in window)) { tb.style.display = 'none'; $('#ttsRate').style.display = 'none'; }
@@ -714,7 +824,7 @@
     var h = location.hash || '#/';
     $('#menuBtn').hidden = true;
     var m;
-    stopTTS(); document.body.classList.remove('focus'); document.body.classList.remove('searching'); setProg(false); updateTabs(h);
+    inkClose(); stopTTS(); document.body.classList.remove('focus'); document.body.classList.remove('searching'); setProg(false); updateTabs(h);
     if ((m = h.match(/^#\/s\/([^/]+)\/cards$/))) cardsView(m[1]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/t\/(.+)$/))) topicView(m[1], m[2]);
     else if ((m = h.match(/^#\/s\/([^/]+)\/practice$/))) practiceView(m[1]);

@@ -237,3 +237,15 @@ body{overscroll-behavior-y:none}
 }
 body.focus .tabbar,body.focus .stickynav{display:none}
 @media (min-width:1101px) and (pointer:fine){.tabbar{display:none}#searchBtn{display:none}}
+
+/* ปากกา */
+.article{position:relative}
+svg.ink{position:absolute;left:0;top:0;width:100%;pointer-events:none;z-index:5;overflow:visible}
+svg.ink.on{pointer-events:auto;touch-action:none;cursor:crosshair;background:rgba(241,196,15,.03);outline:2px dashed var(--accent);outline-offset:-2px;border-radius:14px}
+svg.ink .hlstroke{mix-blend-mode:multiply;opacity:.45}
+.inkbar{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:70;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:96vw;padding:8px;border-radius:18px;background:var(--surface);border:1px solid var(--line);box-shadow:0 10px 32px rgba(0,0,0,.32)}
+.inkbar button{min-width:48px;min-height:48px;border-radius:12px;border:2px solid transparent;background:var(--surface2);font-size:1.3rem;font-weight:700}
+.inkbar button.sel{border-color:var(--accent);background:var(--accent-soft)}
+.inkbar #inkFinger{font-size:.85rem}
+.inkwarn{margin:0 0 12px;padding:8px 12px;border-radius:10px;background:var(--surface2);color:var(--warn);font-size:.88rem}
+body.focus .inkbar{top:12px}
